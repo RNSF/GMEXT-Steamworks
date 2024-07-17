@@ -20,6 +20,7 @@
 void OnUgcFileSubscribed(RemoteStoragePublishedFileSubscribed_t* pCallback );
 void OnUgcFileUnsubscribed(RemoteStoragePublishedFileUnsubscribed_t* pCallback );
 void OnUgcItemInstalled(ItemInstalled_t* pCallback );
+void OnUgcItemDownloadResult(DownloadItemResult_t* pCallback);
 void AddWorkshopItemToWhitelist( PublishedFileId_t _pubFileId );
 
 class CUGCCallbacks
@@ -29,11 +30,13 @@ public:
 	CCallback<CUGCCallbacks, RemoteStoragePublishedFileSubscribed_t,false>		m_CallbackFileSubscribed;
 	CCallback<CUGCCallbacks, RemoteStoragePublishedFileUnsubscribed_t,false>	m_CallbackFileUnsubscribed;
 	CCallback<CUGCCallbacks, ItemInstalled_t,false>								m_CallbackItemInstalled;
+	CCallback<CUGCCallbacks, DownloadItemResult_t, false>						m_CallbackItemDownloadResult;
 
 	CUGCCallbacks():
 	  m_CallbackFileSubscribed(this,&CUGCCallbacks::OnFileSubscribed),
 	  m_CallbackFileUnsubscribed(this,&CUGCCallbacks::OnFileUnsubscribed),
-	  m_CallbackItemInstalled(this,&CUGCCallbacks::OnItemInstalled)
+	  m_CallbackItemInstalled(this,&CUGCCallbacks::OnItemInstalled),
+	  m_CallbackItemDownloadResult(this,&CUGCCallbacks::OnItemDownloadResult)
 	{
 	}
 	
@@ -61,6 +64,15 @@ public:
 		if( pCallback->m_unAppID == SteamUtils()->GetAppID() )
 		{
 			OnUgcItemInstalled( pCallback );
+		}
+	}
+
+	void OnItemDownloadResult(DownloadItemResult_t* pCallback)
+	{
+		//the handler will be called for all item downloads regardless of the running application
+		if (pCallback->m_unAppID == SteamUtils()->GetAppID())
+		{
+			OnUgcItemDownloadResult(pCallback);
 		}
 	}
 };
@@ -147,6 +159,25 @@ void OnUgcItemInstalled(ItemInstalled_t* pCallback )
 			"event_type", (double) 0.0, "ugc_item_installed");
 	g_pYYRunnerInterface->DsMapAddInt64( dsMapIndex, "published_file_id", pCallback->m_nPublishedFileId );
 
+	//return async event
+	g_pYYRunnerInterface->CreateAsyncEventWithDSMap(dsMapIndex, EVENT_OTHER_WEB_STEAM);
+}
+
+void OnUgcItemDownloadResult(DownloadItemResult_t* pCallback )
+{
+	int result = pCallback->m_eResult;
+	
+	//a new Workshop item has been downloaded or attempted to be downloaded
+	AddWorkshopItemToWhitelist(pCallback->m_nPublishedFileId);
+
+
+	int dsMapIndex = CreateDsMap(2,
+		"event_type", (double)0.0, "ugc_item_downloaded",
+		"result", (double)result, NULL
+	);
+
+	g_pYYRunnerInterface->DsMapAddInt64(dsMapIndex, "published_file_id", pCallback->m_nPublishedFileId);
+	
 	//return async event
 	g_pYYRunnerInterface->CreateAsyncEventWithDSMap(dsMapIndex, EVENT_OTHER_WEB_STEAM);
 }
@@ -310,6 +341,7 @@ void OnUgcDownloadResult( RemoteStorageDownloadUGCResult_t* pCallback, bool bIOF
 	//return async event
 	g_pYYRunnerInterface->CreateAsyncEventWithDSMap(dsMapIndex, EVENT_OTHER_WEB_STEAM);
 }
+
 
 
 //CallResult handler for CreateItemResult_t ---------------------------
@@ -839,6 +871,30 @@ YYEXPORT void /*double*/ steam_ugc_download(RValue& Result, CInstance* selfinst,
 
 	Result.kind = VALUE_REAL;
 	Result.val = async_id;
+}
+
+
+//steam_ugc_download_item( published_file_id, high_priority )
+YYEXPORT void /*double*/ steam_ugc_download_item(RValue& Result, CInstance* selfinst, CInstance* otherinst, int argc, RValue* arg)//( uint64 publishedFileId, bool highPriority)/*Steam_Ugc_DownloadItem*/
+{
+	uint64 _publishedFileId = (uint64)YYGetInt64(arg, 0);
+	bool _highPriority = YYGetBool(arg, 1);
+
+	if (!steam_is_initialised)
+	{
+		Result.kind = VALUE_REAL;
+		Result.val = 0;
+		return;
+	}
+
+	int  async_id = getAsyncRequestInd();
+
+	//SteamAPICall_t DownloadItem ( PublishedFileId_t nPublishedFileID )
+	//Download or update a workshop item.
+	bool bResult = SteamUGC()->DownloadItem((PublishedFileId_t) _publishedFileId, _highPriority);
+
+	Result.kind = VALUE_REAL;
+	Result.val = (bResult) ? 1 : 0;
 }
 
 //------------ ugc create, edit content -------------------------------------------
@@ -1375,7 +1431,6 @@ YYEXPORT void /*double*/ steam_ugc_set_user_item_vote(RValue& Result, CInstance*
 	}
 
 	//SteamAPICall_t SetUserItemVote( PublishedFileId_t nPublishedFileID, bool bVoteUp )
-	//A call to this method will result in the associated workshop item voted up or down by the user.
 	int  async_id = getAsyncRequestInd();
 	CSetUserItemVoteHandler* pResultHandler = new CSetUserItemVoteHandler(async_id);
 	SteamAPICall_t hSteamAPICall = SteamUGC()->SetUserItemVote((PublishedFileId_t) _pubFileId, _isVotedUp);
@@ -1398,8 +1453,7 @@ YYEXPORT void /*double*/ steam_ugc_get_user_item_vote(RValue& Result, CInstance*
 		return;
 	}
 
-	//SteamAPICall_t GetUserItemVote( PublishedFileId_t nPublishedFileID, bool bVoteUp )
-	//A call to this method will result in the associated workshop item voted up or down by the user.
+	//SteamAPICall_t GetUserItemVote( PublishedFileId_t nPublishedFileID )
 	int  async_id = getAsyncRequestInd();
 	CGetUserItemVoteHandler* pResultHandler = new CGetUserItemVoteHandler(async_id);
 	SteamAPICall_t hSteamAPICall = SteamUGC()->GetUserItemVote((PublishedFileId_t)_pubFileId);
