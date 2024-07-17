@@ -1316,6 +1316,8 @@ YYEXPORT void /*double*/ steam_ugc_delete_item(RValue& Result, CInstance* selfin
 	Result.val = async_id;
 }
 
+//steam_ugc_set_user_item_vote( published_file_id, vote_up )
+//returns async event id
 YYEXPORT void /*double*/ steam_ugc_set_user_item_vote(RValue& Result, CInstance* selfinst, CInstance* otherinst, int argc, RValue* arg)
 {
 	uint64 _pubFileId = (uint64)YYGetInt64(arg, 0);
