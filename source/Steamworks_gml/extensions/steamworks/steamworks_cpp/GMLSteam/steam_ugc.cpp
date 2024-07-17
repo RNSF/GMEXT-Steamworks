@@ -255,6 +255,7 @@ void OnUgcRequestDetailsResult(SteamUGCRequestUGCDetailsResult_t* pCallback, boo
 void OnUgcRequestDeleteResult(DeleteItemResult_t* pCallback, bool bIOFailure, int asyncId);
 void OnUgcQueryResult( SteamUGCQueryCompleted_t* pCallback, bool bIOFailure, int _asyncId );
 void OnUgcSetUserItemVoteResult(SetUserItemVoteResult_t* pCallback, bool bIOFailure, int asyncId);
+void OnUgcGetUserItemVoteResult(GetUserItemVoteResult_t* pCallback, bool bIOFailure, int asyncId);
 void AddUGCDetailsToMap( SteamUGCDetails_t* pDetails, int dsMapIndex );
 
 
@@ -554,9 +555,52 @@ void OnUgcSetUserItemVoteResult(SetUserItemVoteResult_t* pCallback, bool bIOFail
 
 	int dsMapIndex = CreateDsMap(4,
 		"id", (double)asyncId, NULL,
-		"event_type", (double)0.0, "ugc_set_item_vote",
+		"event_type", (double)0.0, "ugc_set_user_item_vote",
 		"result", (double)result, NULL,
 		"vote_up", (double)pCallback->m_bVoteUp, NULL
+		//"published_filed_id", (double)pCallback->m_nPublishedFileId, NULL 
+	);
+	g_pYYRunnerInterface->DsMapAddInt64(dsMapIndex, "published_file_id", pCallback->m_nPublishedFileId);
+
+
+	//return async event
+	g_pYYRunnerInterface->CreateAsyncEventWithDSMap(dsMapIndex, EVENT_OTHER_WEB_STEAM);
+}
+
+
+// ---------- call result handler for GetUserItemVote / GetUserItemVoteResult_t  -----------
+class CGetUserItemVoteHandler
+{
+public:
+	int m_asyncId;
+	CCallResult<CGetUserItemVoteHandler, GetUserItemVoteResult_t>	m_SteamCallResultGetUserItemVote;
+
+	CGetUserItemVoteHandler(int _asyncId)
+		: m_asyncId(_asyncId) {}
+
+	void SetCallResult(SteamAPICall_t apicall)
+	{
+		m_SteamCallResultGetUserItemVote.Set(apicall, this, &CGetUserItemVoteHandler::OnResult);
+	}
+
+	void OnResult(GetUserItemVoteResult_t* pCallback, bool bIOFailure)
+	{
+		OnUgcGetUserItemVoteResult(pCallback, bIOFailure, m_asyncId);
+		delete this;	//delete the handler (unregisters)
+	}
+};
+
+void OnUgcGetUserItemVoteResult(GetUserItemVoteResult_t* pCallback, bool bIOFailure, int asyncId)
+{
+	int result = (bIOFailure) ? 0 : pCallback->m_eResult;
+
+	int dsMapIndex = CreateDsMap(6,
+		"id", (double)asyncId, NULL,
+		"event_type", (double)0.0, "ugc_get_user_item_vote",
+		"result", (double)result, NULL,
+		"voted_up", (double)pCallback->m_bVotedUp, NULL,
+		"voted_down", (double)pCallback->m_bVotedDown, NULL,
+		"vote_skipped", (double)pCallback->m_bVoteSkipped, NULL
 		//"published_filed_id", (double)pCallback->m_nPublishedFileId, NULL 
 	);
 	g_pYYRunnerInterface->DsMapAddInt64(dsMapIndex, "published_file_id", pCallback->m_nPublishedFileId);
@@ -1335,6 +1379,30 @@ YYEXPORT void /*double*/ steam_ugc_set_user_item_vote(RValue& Result, CInstance*
 	int  async_id = getAsyncRequestInd();
 	CSetUserItemVoteHandler* pResultHandler = new CSetUserItemVoteHandler(async_id);
 	SteamAPICall_t hSteamAPICall = SteamUGC()->SetUserItemVote((PublishedFileId_t) _pubFileId, _isVotedUp);
+	pResultHandler->SetCallResult(hSteamAPICall);
+
+	Result.kind = VALUE_REAL;
+	Result.val = async_id;
+}
+
+//steam_ugc_get_user_item_vote( published_file_id )
+//returns async event id
+YYEXPORT void /*double*/ steam_ugc_get_user_item_vote(RValue& Result, CInstance* selfinst, CInstance* otherinst, int argc, RValue* arg)
+{
+	uint64 _pubFileId = (uint64)YYGetInt64(arg, 0);
+
+	if (!steam_is_initialised)
+	{
+		Result.kind = VALUE_REAL;
+		Result.val = 0;
+		return;
+	}
+
+	//SteamAPICall_t GetUserItemVote( PublishedFileId_t nPublishedFileID, bool bVoteUp )
+	//A call to this method will result in the associated workshop item voted up or down by the user.
+	int  async_id = getAsyncRequestInd();
+	CGetUserItemVoteHandler* pResultHandler = new CGetUserItemVoteHandler(async_id);
+	SteamAPICall_t hSteamAPICall = SteamUGC()->GetUserItemVote((PublishedFileId_t)_pubFileId);
 	pResultHandler->SetCallResult(hSteamAPICall);
 
 	Result.kind = VALUE_REAL;
