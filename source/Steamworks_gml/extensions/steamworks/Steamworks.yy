@@ -579,6 +579,8 @@
         {"name":"steam_ugc_query_set_allow_cached_response","path":"extensions/Steamworks/Steamworks.yy",},
         {"name":"steam_ugc_send_query","path":"extensions/Steamworks/Steamworks.yy",},
         {"name":"steam_ugc_set_user_item_vote","path":"extensions/Steamworks/Steamworks.yy",},
+        {"name":"steam_ugc_get_user_item_vote","path":"extensions/Steamworks/Steamworks.yy",},
+        {"name":"steam_ugc_download_item","path":"extensions/Steamworks/Steamworks.yy",},
         {"name":"steam_is_user_logged_on","path":"extensions/Steamworks/Steamworks.yy",},
         {"name":"steam_get_user_steam_id","path":"extensions/Steamworks/Steamworks.yy",},
         {"name":"steam_get_user_account_id","path":"extensions/Steamworks/Steamworks.yy",},
