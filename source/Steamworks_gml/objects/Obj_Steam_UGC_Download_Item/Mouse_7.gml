@@ -1,0 +1,1 @@
+show_debug_message(steam_ugc_download_item(publishId));

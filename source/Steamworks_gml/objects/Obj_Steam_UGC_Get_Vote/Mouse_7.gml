@@ -1,0 +1,2 @@
+
+steam_ugc_get_user_item_vote(publishId);
